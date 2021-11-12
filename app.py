@@ -62,15 +62,13 @@ category_options = pd.read_sql_query(
     "where category_1 is not null "\
     "limit 13", engine)
 
-# #query unique categories in category_2 
-# category_options_2 = pd.read_sql_query(
-#     "select category_2 from (select category_2, count(*) as count_cat "\
-#     "from mercariedata1 "\
-#     "group by category_2 "\
-#     "order by count_cat desc "\
-#     "limit 100) as t "\
-#     "where category_2 is not null "\
-#     "limit 13", engine)
+# #initialize second category list before updating
+category_options_2 = pd.read_sql_query(
+    "select category_2 from (select category_2, count(*) as count_cat "\
+    "from mercariedata1 where category_2 is not null "\
+    "group by category_2 "\
+    "order by count_cat desc) as t "\
+    "limit 13", engine)
 
 # #query unique categories in category_2 
 # category_options_3 = pd.read_sql_query(
@@ -93,6 +91,10 @@ category_dictionary = {}
 for item in category_options["category_1"]:
     category_dictionary[f"dd_{item}"] = item
 
+#create dictionary for category_2
+global_category_2_dict = {}
+for item in category_options_2["category_2"]:
+    category_options_2[f"dd_2_{item}"] = item
 
 #list of cards 
 first_card = dbc.Card(
@@ -110,22 +112,23 @@ first_card = dbc.Card(
         html.Br(),
         html.H5("Pick First Subcategory"),
         dbc.DropdownMenu(
+            id = "second_dropdown",
+            children = [
+                dbc.DropdownMenuItem(item, id=f"dd_2_{item}") for item in category_options_2["category_2"]
+            ],
             label="First Subcategory", 
             color="primary",
             size = "lg", 
-            children=[
-                dbc.DropdownMenuItem(item) for item in category_options["category_1"]
-            ]),
+            ),
         html.Br(),  
-        html.H5("Pick Second Subcategory"),
-        dbc.DropdownMenu(
-            label="Second Subcategory", 
-            color="primary",
-            size = "lg", 
-            children=[
-                dbc.DropdownMenuItem(item) for item in category_options["category_1"]
-            ]),
-        html.Br(),
+        # html.H5("Pick Second Subcategory"),
+        # dbc.DropdownMenu(
+        #     id = "third_dropdown", 
+        #     label="Second Subcategory", 
+        #     color="primary",
+        #     size = "lg", 
+        #     ),
+        # html.Br(),
         html.Div(
             [dbc.Button("Search!",id="search_button", outline=True, color="primary", size="lg")],
             className="d-grid gap-2 col-6 mx-auto"
@@ -133,9 +136,6 @@ first_card = dbc.Card(
             ])
             ]
 )
-
-
-
 
 #app layout for Dash 
 app.layout = dbc.Container(
@@ -169,8 +169,29 @@ fluid=True
 
 ###callback functions
 @app.callback(
-    Output
+    Output("second_dropdown", "children"),
+    [Input("first_dropdown", "label")]
 )
+def change_second_dropdown(cat_1_label):
+    category_2_options = pd.read_sql_query(
+    "select category_2 from "\
+    "(select category_2 from (select category_2, count(*) as count_cat_2 "\
+    "from mercariedata1 "\
+    "where category_1 = '" + cat_1_label+"' "\
+    "group by category_2 "\
+    "order by count_cat_2 desc) as t "\
+    "limit 10", engine)
+
+    category_options_2 = category_2_options
+    global_category_2_dict = {}
+    for item in category_2_options["category_2"]:
+        global_category_2_dict[f"dd_2_{item}"] = item
+
+    children = [
+        dbc.DropdownMenuItem(item, id = f"dd_2_{item}") 
+        for item in category_2_options["category_2"]
+        ]
+    return children
 
 
 @app.callback(
@@ -197,46 +218,11 @@ def update_graph(button_click, category_label):
     # )
     return fig
 
-# @app.callback(
-#     Output("loading_output", "children"), 
-#     Input("distplot", "figure")
-# )
-# def input_triggers_spinner(value):
-#     return value
-
-
-#update graph based on dropdown selection
-# @app.callback(
-#     Output("distplot", "figure"), 
-#     [
-#         Input("first_dropdown", "label")
-#     ]
-# )
-# def make_distribution(category_label):
-#     if category_label == "Category":
-#         raise PreventUpdate
-#     print("Here")
-#     cat_df = query_category(category_label)
-#     print("here1")
-#     prices = [cat_df[np.abs(stats.zscore(cat_df["price"]))<2]["price"]]
-#     group_labels = ["distplot"]
-#     fig = ff.create_distplot(
-#         prices,
-#         group_labels,
-#         curve_type = "kde"
-#     )
-#     print("here2")
-    # fig.add_vline(
-    #     x = np.mean(cat_df.price), 
-    #     line_dash ="dash", 
-    #     line_color = "blue"
-    # )
-    #return fig
     
-#update dropdown list to whichever is selected 
+#update dropdown list to whichever is selected for category_1
 @app.callback(
     Output("first_dropdown", "label"), 
-    [Input(f"dd_{item}", "n_clicks") for item in category_options["category_1"]]
+    [Input(f"dd_{item}", "n_clicks") for item in category_options["category_1"]] 
 )
 def update_label(*input_list):
     ctx = dash.callback_context
@@ -248,6 +234,25 @@ def update_label(*input_list):
     
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
     return category_dictionary[button_id]
+
+
+#update dropdown list to whichever is selected for category_2
+@app.callback(
+    Output("second_dropdown", "label"), 
+    [Input(f"dd_2_{item}", "n_clicks") for item in category_options_2["category_2"]] 
+)
+def update_label(*input_list):
+    ctx = dash.callback_context
+
+    # if (n1 is None and n2 is None) or not ctx.triggered:
+    #     return "Not Selected"
+    if all(item is None for item in input_list) or not ctx.triggered: 
+        return "First Subcategory"
+    
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    return global_category_2_dict.get[button_id]
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True,host = '127.0.0.1')
