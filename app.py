@@ -16,6 +16,8 @@ import numpy as np
 from scipy import stats
 import plotly.graph_objs as go
 from dash.exceptions import PreventUpdate
+import geopandas as gpd
+
 
 
 #initialize app 
@@ -26,9 +28,11 @@ server = app.server
 #initialize engine from postgresql
 engine = create_engine(f"postgresql+psycopg2://{config.user_id}:{config.password}@localhost:5432/postgres", echo=False)
 
+#initialize token for mapbox 
+px.set_mapbox_access_token(config.mapbox)
+
 #query for certain categories in category_1 then return df 
 def query_category(*args):
-    print(args)
 
     if len(args)==1: 
         category_1 = args[0]
@@ -137,44 +141,86 @@ first_card = dbc.Card(
         html.Div(
             [dbc.Button("Search!",id="search_button", outline=True, color="primary", size="lg")],
             className="d-grid gap-2 col-6 mx-auto"
-            )
+            ) 
+
             ])
             ]
 )
 
-#app layout for Dash 
-app.layout = dbc.Container(
-[
-    html.H1("Explore Items on Mercarie"), 
-    html.Br(),
-    dbc.Row(
-        [
-            dbc.Col(first_card)
-        ], 
-        align = "center"
-    ), 
-    dbc.Row(
-        [
- 
-            dbc.Col(
 
-                dcc.Loading(
-                    id="loading_graph",
-                    type="default",
-                    children=[
-                        dcc.Graph(id="distplot"),
-                        dcc.Graph(id="boxplot")
-                    ]
-                )
-                )
-        ]
-    )
-], 
-fluid=True
+
+#app layout for Dash 
+app.layout = html.Div([
+
+dbc.Container(
+    [
+        dcc.Tabs(id="tabs", children = [
+            dcc.Tab(label = "Explore Items", value="tab-1", children = [
+                html.Br(),
+                html.H1("Explore Items on Mercarie"),
+                html.Br(),
+                dbc.Row(
+                        [
+                        dbc.Col(first_card)
+                        ], 
+                    align = "center"
+                ), 
+                dbc.Row(
+                        [
+ 
+                        dbc.Col(
+                            dcc.Loading(
+                                id = "loading_graph", 
+                                type = "default", 
+                                children = [
+                                     html.Br(),
+                                    html.H1("Pricing Distribution"),
+                                    html.Hr(), 
+                                    dcc.Graph(id="distplot"),
+                                    html.Br(),
+                                    html.H1("Pricing Spread"),
+                                    html.Hr(),
+                                    dcc.Graph(id="boxplot")
+                                    ]
+                                    )
+                                )
+                        ]
+                        ), 
+                dbc.Row(
+                        [
+                        dbc.Col(
+                            dcc.Loading(
+                                id="loading_graph2",
+                                type="default",
+                                children=[ 
+                                html.Br(),
+                                html.H1("Top 10 Brands"),  
+                                html.Hr(),
+                                dcc.Graph(id="barchart"), 
+                                html.Br(), 
+                                html.H1("Geographic Distribution"),
+                                html.Hr(),
+                                dcc.Graph("geo_map")
+                                ]
+                                )
+                            )
+                        ]
+                        )              
+        
+
+            ]), 
+            dcc.Tab(label = "Sell Items", value="tab-2"), 
+
+        ])
+    ]
+
 )
+])
 
 
 ###callback functions
+
+#update label for third dropdown based on previous two 
 @app.callback(
     Output("third_dropdown", "options"),
     [
@@ -201,7 +247,7 @@ def change_third_dropdown(cat_1_label, cat_2_label):
 
     return options
 
-
+#update label for second dropdown 
 @app.callback(
     Output("second_dropdown", "options"),
     [Input("first_dropdown", "label")]
@@ -224,6 +270,71 @@ def change_second_dropdown(cat_1_label):
         ]
 
     return options
+
+#callback for barchart for top 10 brands
+@app.callback(
+    Output("barchart", "figure"),
+    [Input("search_button","n_clicks" ), 
+    State(component_id="first_dropdown", component_property="label"), 
+    State(component_id="second_dropdown", component_property="value"),
+    State(component_id="third_dropdown", component_property="value")
+    ]
+)
+def update_graph(button_click, category_label, second_label, third_label):
+    if category_label == "Category":
+        raise PreventUpdate
+    cat_df = query_category(category_label, second_label, third_label)
+    top_ten = cat_df["brand"].value_counts().reset_index(name="top_brands")[:10]
+
+    fig = px.bar(
+        top_ten, 
+        x="index",
+        y="top_brands"
+    )
+    # fig.add_vline(
+    #     x = np.mean(cat_df.price), 
+    #     line_dash ="dash", 
+    #     line_color = "blue"
+    # )
+    return fig
+
+
+#callback for geochart###############################
+@app.callback(
+    Output("geo_map", "figure"),
+    [Input("search_button","n_clicks" ), 
+    State(component_id="first_dropdown", component_property="label"), 
+    State(component_id="second_dropdown", component_property="value"),
+    State(component_id="third_dropdown", component_property="value")
+    ]
+)
+def update_graph(button_click, category_label, second_label, third_label):
+    if category_label == "Category":
+        raise PreventUpdate
+    cat_df = query_category(category_label, second_label, third_label)
+    cat_df = cat_df["location"].value_counts().reset_index()
+
+    usa = gpd.read_file("./states_21basic/states.shp")
+    usa = usa[(usa["STATE_NAME"]!="Hawaii") & (usa["STATE_NAME"]!="Alaska") ]
+    usa = usa.merge(cat_df, how="left", left_on="STATE_NAME", right_on="index")
+
+    usa.rename(columns={"index":"State"}, inplace=True)
+    usa.set_index("State", inplace=True)
+    usa.rename(columns={"location":"Count"}, inplace=True)
+
+    fig = px.choropleth_mapbox(
+        usa, 
+        geojson = usa.geometry, 
+        locations = usa.index, 
+        color = usa.Count, 
+        zoom = 3.2, 
+        center = {"lat":39, "lon":-95}, 
+        color_continuous_scale=px.colors.sequential.Oranges,
+        height = 900
+    )
+
+    return fig
+
 
 
 #callback for distplot
@@ -273,8 +384,7 @@ def update_graph(button_click, category_label, second_label, third_label):
     group_labels = ["distplot"]
     fig = px.box(
         cat_df,
-        x="price", 
-        title = "Pricing Distribution"
+        x="price"
     )
     # fig.add_vline(
     #     x = np.mean(cat_df.price), 
