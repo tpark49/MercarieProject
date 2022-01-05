@@ -2,7 +2,6 @@ import dash
 from dash.dependencies import Input, Output, State 
 import dash_core_components as dcc
 import dash_html_components as html
-from flask.scaffold import F
 import plotly.express as px
 import pandas as pd 
 import io 
@@ -100,10 +99,6 @@ category_dictionary = {}
 for item in category_options["category_1"]:
     category_dictionary[f"dd_{item}"] = item
 
-# #create dictionary for category_2
-# global_category_2_dict = {}
-# for item in category_options_2["category_2"]:
-#     global_category_2_dict[f"dd_2_{item}"] = item
 
 
 #list of cards 
@@ -299,7 +294,7 @@ def update_graph(button_click, category_label, second_label, third_label):
     return fig
 
 
-#callback for geochart###############################
+#callback for geochart
 @app.callback(
     Output("geo_map", "figure"),
     [Input("search_button","n_clicks" ), 
@@ -335,7 +330,7 @@ def update_graph(button_click, category_label, second_label, third_label):
 
     return fig
 
-
+#some change 
 
 #callback for distplot
 @app.callback(
@@ -412,8 +407,8 @@ def update_label(*input_list):
 
 if __name__ == '__main__':
     app.run_server(debug=True,
-                    host = '127.0.0.1',
-                    port = 8051
+                    host = '0.0.0.0',
+                    port = 8080
                     )
 
 
