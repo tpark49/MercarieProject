@@ -20,8 +20,10 @@ import geopandas as gpd
 
 
 #initialize app 
+external_stylesheets = ['https://bootswatch.com/5/journal/bootstrap.min.css']
+
 app = dash.Dash(__name__)
-app = dash.Dash(external_stylesheets=[dbc.themes.JOURNAL])
+app = dash.Dash(external_stylesheets=external_stylesheets)
 server = app.server
 
 #initialize engine from postgresql
