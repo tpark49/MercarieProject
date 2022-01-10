@@ -38,3 +38,4 @@ zipp==3.7.0
 google-cloud==0.34.0
 google-cloud-secret-manager==2.8.0
 google-auth==2.3.3
+pandas-gbq==0.16.0

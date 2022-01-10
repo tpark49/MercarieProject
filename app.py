@@ -18,13 +18,28 @@ import geopandas as gpd
 from google.cloud import secretmanager
 from google.oauth2 import service_account
 import os 
+import pandas_gbq
+from google.cloud import bigquery
 
 
-credentials = service_account.Credentials.from_service_account_file('/Users/tonypark/Desktop/MercarieProject/credentials/my-project-3604-337404-f179dd1d6873.json')
+current_directory = os.path.abspath(os.path.dirname(__file__))
+path_to_service_account_json = os.path.join(current_directory, 'credentials/my-project-3604-337404-f179dd1d6873.json')
+
+credentials = service_account.Credentials.from_service_account_file(path_to_service_account_json)
 project_id = 'my-project-3604-337404'   
+database = 'my-project-3604-337404.mercarie_data.mercarie_datatable' 
 
+df = pd.read_gbq(
+    f"""
+    select * 
+    from {database}
+    limit 100
+    """, 
+    project_id=project_id,
+    dialect='standard', 
+    credentials=credentials)
 
-
+# print(df.head())
 ###database connection 
 # db_user = os.environ["DB_USER"]
 # db_pass = os.environ["DB_PASS"]
@@ -53,20 +68,6 @@ project_id = 'my-project-3604-337404'
 # )
 
 
-
-# project_id = "my-project-3604-337404"
-
-# secret_id = "mercarie-secret"
-
-# # Create the Secret Manager client.
-# client = secretmanager.SecretManagerServiceClient()
-
-# response = client.access_secret_version(
-#     name = f'projects/{project_id}/secrets/{secret_id}/versions/1'
-# )
-
-# db_password = response.payload.data.decode("UTF-8")
-
 #initialize app 
 external_stylesheets = ['https://bootswatch.com/5/journal/bootstrap.min.css']
 
@@ -75,7 +76,8 @@ app = dash.Dash(external_stylesheets=external_stylesheets)
 server = app.server
 
 app.layout = html.Div([
-    html.H1("Hello World")
+    html.H1("Hello World"), 
+    html.H5(f"{df.head()}")
 ])
 
 
