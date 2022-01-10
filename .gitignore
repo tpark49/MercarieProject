@@ -7,6 +7,10 @@ __pycache__/
 .config.py
 config.py
 
+.credentials
+credentials
+app.yaml
+*.yaml
 # C extensions
 *.so
 
